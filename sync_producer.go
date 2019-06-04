@@ -3,6 +3,7 @@ package kafka
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/Shopify/sarama"
 	"github.com/opentracing/opentracing-go"
@@ -41,7 +42,7 @@ func (s *SyncProducer) Produce(topic string, message []byte) (int32, int64, erro
 }
 
 func (s *SyncProducer) SendMessage(msg *sarama.ProducerMessage) (int32, int64, error) {
-	span := s.buildSpan()
+	span := s.buildSpan([]*sarama.ProducerMessage{msg})
 	defer span.Finish()
 	defer tracing.LogPanic(span)
 
@@ -54,7 +55,7 @@ func (s *SyncProducer) SendMessage(msg *sarama.ProducerMessage) (int32, int64, e
 }
 
 func (s *SyncProducer) SendMessages(msgs []*sarama.ProducerMessage) error {
-	span := s.buildSpan()
+	span := s.buildSpan(msgs)
 	defer span.Finish()
 	defer tracing.LogPanic(span)
 
@@ -66,17 +67,29 @@ func (s *SyncProducer) SendMessages(msgs []*sarama.ProducerMessage) error {
 	return err
 }
 
-func (s *SyncProducer) buildSpan() opentracing.Span {
+func (s *SyncProducer) buildSpan(msgs []*sarama.ProducerMessage) opentracing.Span {
 	var parent opentracing.SpanContext
 
 	if span := opentracing.SpanFromContext(s.ctx); span != nil {
 		parent = span.Context()
 	}
+	topics := make([]string, len(msgs))
+	length := 0
+	for i, msg := range msgs {
+		topics[i] = msg.Topic
+		length += msg.Value.Length()
+	}
+	topicsStr := strings.Join(topics, ",")
+	if len(topicsStr) > 140 {
+		topicsStr = topicsStr[0:140]
+	}
 
 	operationName := fmt.Sprintf("Kafka Produce")
 	reference := opentracing.ChildOf(parent)
 	tags := opentracing.Tags{
-		"span.kind": "client",
+		"kafka.message.topic":  topicsStr,
+		"kafka.message.length": length,
+		"span.kind":            "client",
 	}
 
 	return opentracing.StartSpan(operationName, reference, tags)

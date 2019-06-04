@@ -51,7 +51,7 @@ func TestSyncProducerSendMessage(t *testing.T) {
 	s := kafka.NewSyncProducerFromClient(m)
 	ctx := context.WithValue(context.Background(), "key", "value")
 	ss := s.WithContext(ctx)
-	msg := &sarama.ProducerMessage{}
+	msg := &sarama.ProducerMessage{Topic: "some-topic", Value: sarama.ByteEncoder([]byte("message"))}
 	m.EXPECT().SendMessage(msg).Times(1).Return(int32(1), int64(2), nil)
 	p, o, err := ss.SendMessage(msg)
 	if p != 1 {
@@ -72,14 +72,14 @@ func TestSyncProducerSendMessages(t *testing.T) {
 	s := kafka.NewSyncProducerFromClient(m)
 	ctx := context.WithValue(context.Background(), "key", "value")
 	ss := s.WithContext(ctx)
-	msg1 := &sarama.ProducerMessage{}
+	msg1 := &sarama.ProducerMessage{Topic: "some-topic", Value: sarama.ByteEncoder([]byte("message"))}
 	m.EXPECT().SendMessages([]*sarama.ProducerMessage{msg1}).Times(1).Return(nil)
 	var err error
 	err = ss.SendMessages([]*sarama.ProducerMessage{msg1})
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err.Error())
 	}
-	msg2 := &sarama.ProducerMessage{}
+	msg2 := &sarama.ProducerMessage{Topic: "some-topic-2", Value: sarama.ByteEncoder([]byte("message"))}
 	m.EXPECT().SendMessages([]*sarama.ProducerMessage{msg2}).Times(1).Return(fmt.Errorf("fake fail"))
 	err = ss.SendMessages([]*sarama.ProducerMessage{msg2})
 	if err == nil {
